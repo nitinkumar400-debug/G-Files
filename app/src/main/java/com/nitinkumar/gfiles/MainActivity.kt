@@ -169,7 +169,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         } else {
             emptyList()
         }
-    }\n    val storage = remember(refresh) {
+    }
+    val storage = remember(refresh) {
         runCatching {
             val stat = StatFs(Environment.getExternalStorageDirectory().path)
             val total = stat.totalBytes
