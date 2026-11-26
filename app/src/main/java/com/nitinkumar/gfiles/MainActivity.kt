@@ -13,6 +13,8 @@ import android.os.StatFs
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -50,6 +52,15 @@ private val Muted = Color(0xFF9DB2C9)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val prefs = getSharedPreferences("gfiles_settings", MODE_PRIVATE)
+        var headerImage by mutableStateOf(prefs.getString("header_image_uri", null))
+        val imagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                prefs.edit().putString("header_image_uri", uri.toString()).apply()
+                headerImage = uri.toString()
+            }
+        }
         setContent {
             GFilesApp(
                 hasAccess = { Environment.isExternalStorageManager() },
@@ -58,6 +69,8 @@ class MainActivity : ComponentActivity() {
                         Uri.parse("package:$packageName"))
                     startActivity(intent)
                 },
+                headerImageUri = headerImage,
+                chooseHeaderImage = { imagePicker.launch(arrayOf("image/*")) },
                 openFile = { file ->
                     val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
                     val mime = contentResolver.getType(uri) ?: "*/*"
@@ -70,7 +83,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (File) -> Unit) {
+fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUri: String?, chooseHeaderImage: () -> Unit, openFile: (File) -> Unit) {
     var current by remember { mutableStateOf(Environment.getExternalStorageDirectory()) }
     var refresh by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -82,13 +95,15 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
     var renameTarget by remember { mutableStateOf<File?>(null) }
     var renameText by remember { mutableStateOf("") }
     var infoDialog by remember { mutableStateOf<String?>(null) }
+    var settingsOpen by remember { mutableStateOf(false) }
 
     BackHandler(enabled = !home || page != "LOCAL") {
         if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
         else {
             val root = Environment.getExternalStorageDirectory()
             val parent = current.parentFile
-            if (parent != null && (parent.absolutePath == root.absolutePath || parent.absolutePath.startsWith(root.absolutePath + File.separator))) current = parent
+            if (current.name.equals("Download", true)) { current = root; home = true; query = "" }
+            else if (parent != null && (parent.absolutePath == root.absolutePath || parent.absolutePath.startsWith(root.absolutePath + File.separator))) current = parent
             else { current = root; home = true; query = "" }
         }
     }
@@ -122,65 +137,28 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                 IconButton(onClick = { dark = !dark }) {
                     Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Theme", tint = Color.White)
                 }
-                IconButton(onClick = { infoDialog = "G Files • Storage manager" }) {
+                IconButton(onClick = { settingsOpen = true }) {
                     Icon(Icons.Default.MoreVert, "More", tint = Color.White)
                 }
             }
 
             if (home && page == "LOCAL") {
                 Column(Modifier.weight(1f)) {
-                    Column(
-                        Modifier.fillMaxWidth()
+                    Box(
+                        Modifier.fillMaxWidth().height(190.dp)
                             .background(Brush.verticalGradient(listOf(Color(0xFF087FAE), Color(0xFF14518C), bg)))
-                            .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 28.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(184.dp)) {
-                                    CircularProgressIndicator(
-                                        progress = { storage.third.coerceIn(0f, 1f) },
-                                        modifier = Modifier.fillMaxSize(),
-                                        color = Color.White,
-                                        trackColor = Color.White.copy(alpha = .25f),
-                                        strokeWidth = 9.dp
-                                    )
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("${(storage.third * 100).toInt()}%", color = Color.White,
-                                            style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Light)
-                                        Text("Main storage", color = Color.White, fontWeight = FontWeight.Medium)
-                                        Text("${formatSize(storage.second)} / ${formatSize(storage.first)}",
-                                            color = Color.White.copy(alpha = .8f), style = MaterialTheme.typography.labelMedium)
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.width(20.dp))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                listOf("Images" to Icons.Default.Image, "Audio" to Icons.Default.AudioFile, "Videos" to Icons.Default.VideoFile).forEach { (name, icon) ->
-                                    Row(
-                                        Modifier.fillMaxWidth().clickable {
-                                            home = false
-                                        },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(icon, null, tint = Color.White.copy(alpha = .9f), modifier = Modifier.size(21.dp))
-                                        Spacer(Modifier.width(9.dp))
-                                        Text(name, color = Color.White, style = MaterialTheme.typography.titleMedium)
-                                    }
-                                }
-                                OutlinedButton(
-                                    onClick = { infoDialog = "Storage used: ${formatSize(storage.second)}\nTotal capacity: ${formatSize(storage.first)}\nFree space: ${formatSize(storage.first - storage.second)}" },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .8f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                                ) { Text("STORAGE INFO", fontWeight = FontWeight.Bold) }
-                            }
+                        val context = LocalContext.current
+                        val headerBitmap = remember(headerImageUri) {
+                            runCatching { headerImageUri?.let { context.contentResolver.openInputStream(Uri.parse(it))?.use { stream -> BitmapFactory.decodeStream(stream) } } }.getOrNull()
                         }
-                        Spacer(Modifier.height(20.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                            Box(Modifier.size(8.dp).background(Color(0xFF8DA7FF), CircleShape))
-                            Spacer(Modifier.width(10.dp))
-                            Box(Modifier.size(8.dp).background(Color.White.copy(alpha = .35f), CircleShape))
+                        if (headerBitmap != null) {
+                            Image(bitmap = headerBitmap.asImageBitmap(), contentDescription = "Custom home header",
+                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            Box(Modifier.fillMaxSize().background(Color(0x66071426)))
                         }
+                        Text("G Files", modifier = Modifier.align(Alignment.BottomStart).padding(20.dp),
+                            color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     }
 
                     Row(Modifier.fillMaxWidth().background(card), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -199,10 +177,10 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                     if (page == "LOCAL") {
                         Column(Modifier.fillMaxWidth().padding(16.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                HomeTile("Main storage", Icons.Default.PhoneAndroid, Color(0xFF1598E8), Modifier.weight(1f)) {
+                                HomeTile("Main storage", Icons.Default.FolderSpecial, Color(0xFF5B6FE8), Modifier.weight(1f)) {
                                     current = Environment.getExternalStorageDirectory(); home = false
                                 }
-                                HomeTile("Downloads", Icons.Default.Download, Color(0xFF278FE0), Modifier.weight(1f)) {
+                                HomeTile("Downloads", Icons.Default.Downloading, Color(0xFF00AFA0), Modifier.weight(1f)) {
                                     current = File(Environment.getExternalStorageDirectory(), "Download")
                                     home = false
                                 }
@@ -307,6 +285,12 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
         }
     }
 
+    if (settingsOpen) {
+        AlertDialog(onDismissRequest = { settingsOpen = false }, title = { Text("Settings") },
+            text = { Text("Home header image") },
+            confirmButton = { TextButton(onClick = { settingsOpen = false; chooseHeaderImage() }) { Text("Choose image") } },
+            dismissButton = { TextButton(onClick = { settingsOpen = false }) { Text("Close") } })
+    }
     infoDialog?.let { message ->
         AlertDialog(onDismissRequest = { infoDialog = null }, title = { Text("G Files") },
             text = { Text(message) }, confirmButton = { TextButton(onClick = { infoDialog = null }) { Text("OK") } })
