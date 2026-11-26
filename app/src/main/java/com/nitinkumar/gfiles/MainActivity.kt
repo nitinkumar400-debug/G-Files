@@ -266,7 +266,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                         if (files.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("This folder is empty", color = fg.copy(alpha = .6f))
                         } else if (grid) {
-                            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 112.dp),
+                            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 104.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 gridItems(files, key = { it.absolutePath }) { file ->
@@ -276,10 +276,10 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                             onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else if (file.extension.equals("zip", true)) { zipTarget = file; zipEntries = runCatching { ZipFile(file).use { z -> z.entries().asSequence().take(150).map { it.name }.toList() } }.getOrDefault(emptyList()) } else openFile(file) },
                                             onLongClick = { if (!selectedFiles.contains(file)) selectedFiles.add(file) }
                                         )) {
-                                        Column(Modifier.padding(9.dp)) {
-                                            Box(Modifier.fillMaxWidth().height(112.dp)) {
+                                        Column(Modifier.padding(7.dp)) {
+                                            Box(Modifier.fillMaxWidth().height(96.dp)) {
                                                 FileThumbnail(file = file, modifier = Modifier.fillMaxSize(),
-                                                    tint = if (file.isDirectory) Cyan else Blue)
+                                                    tint = Color(0xFFFFC928))
                                                 if (selectedFiles.contains(file)) {
                                                     Surface(
                                                         modifier = Modifier.align(Alignment.TopEnd).padding(7.dp).size(26.dp),
@@ -323,7 +323,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                             Spacer(Modifier.width(8.dp))
                                         }
                                         Icon(if (file.isDirectory) Icons.Default.Folder else fileIcon(file), null,
-                                            tint = if (file.isDirectory) Cyan else Blue, modifier = Modifier.size(28.dp))
+                                            tint = Color(0xFFFFC928), modifier = Modifier.size(34.dp))
                                         Spacer(Modifier.width(12.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(file.name, color = fg, fontWeight = FontWeight.Medium, maxLines = 1)
