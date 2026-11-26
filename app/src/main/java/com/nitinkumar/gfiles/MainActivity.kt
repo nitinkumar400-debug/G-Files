@@ -143,6 +143,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     val context = LocalContext.current
     val selectedFiles = remember { mutableStateListOf<File>() }
     val selectedUsbFiles = remember { mutableStateListOf<DocumentFile>() }
+    val usbPrefs = remember { context.getSharedPreferences("gfiles_settings", Context.MODE_PRIVATE) }
+    var usbTreeUri by remember { mutableStateOf(usbPrefs.getString("usb_tree_uri", null)) }
     val usbClipboardPrefs = remember { context.getSharedPreferences("gfiles_settings", Context.MODE_PRIVATE) }
     var usbClipboardUris by remember {
         mutableStateOf(usbClipboardPrefs.getStringSet("usb_clipboard_uris", emptySet())?.toList() ?: emptyList())
@@ -152,8 +154,6 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     }
     var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
     var moveMode by remember { mutableStateOf(false) }
-    val usbPrefs = remember { context.getSharedPreferences("gfiles_settings", Context.MODE_PRIVATE) }
-    var usbTreeUri by remember { mutableStateOf(usbPrefs.getString("usb_tree_uri", null)) }
     var usbStack by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     val usbTreePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
