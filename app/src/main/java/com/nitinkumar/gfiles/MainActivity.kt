@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
 import android.provider.Settings
+import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 import androidx.activity.compose.BackHandler
@@ -147,7 +148,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         mutableStateOf(usbClipboardPrefs.getStringSet("usb_clipboard_uris", emptySet())?.toList() ?: emptyList())
     }
     val usbClipboard: List<DocumentFile> = remember(usbClipboardUris) {
-        usbClipboardUris.mapNotNull { raw -> runCatching { DocumentFile.fromTreeUri(context, Uri.parse(raw)) }.getOrNull() }
+        usbClipboardUris.mapNotNull { raw -> runCatching { documentFileFromPersistedUri(context, Uri.parse(raw)) }.getOrNull() }
     }
     var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
     var moveMode by remember { mutableStateOf(false) }
@@ -695,6 +696,14 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
 }
 
 
+
+
+private fun documentFileFromPersistedUri(context: Context, uri: Uri): DocumentFile? {
+    val authority = uri.authority ?: return null
+    val documentId = DocumentsContract.getDocumentId(uri)
+    val treeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId)
+    return DocumentFile.fromTreeUri(context, treeUri)
+}
 
 private fun copyDocumentToFile(context: Context, source: DocumentFile, destination: File) {
     val name = source.name ?: "Copied item"
