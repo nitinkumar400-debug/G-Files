@@ -247,7 +247,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                             }
                         }
                     } else {
-                        val files = remember(current, refresh, query, selectedTab) {
+                        val files = remember(current, refresh, query) {
                             (current.listFiles()?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() }) ?: emptyList())
                                 .filter { !it.name.startsWith(".") || query.isNotBlank() }
                                 .filter { it.name.contains(query, true) }
