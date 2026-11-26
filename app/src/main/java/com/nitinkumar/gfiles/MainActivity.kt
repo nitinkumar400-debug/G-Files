@@ -496,7 +496,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                 }
             }
         }
-     if (page == "USB" && (selectedUsbFiles.isNotEmpty() || usbClipboard.isNotEmpty())) {
+     if (selectedUsbFiles.isNotEmpty() || usbClipboard.isNotEmpty()) {
         Surface(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)
                 .navigationBarsPadding(),
@@ -509,12 +509,16 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                     Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
                 }
                 IconButton(enabled = usbClipboard.isNotEmpty(), onClick = {
-                    val target = usbStack.lastOrNull()
-                    if (target != null) {
-                        usbClipboard.forEach { source -> runCatching { copyDocumentTree(context, source, target) } }
-                        usbClipboard = emptyList()
-                        refresh++
+                    if (page == "USB") {
+                        val target = usbStack.lastOrNull()
+                        if (target != null) usbClipboard.forEach { source ->
+                            runCatching { copyDocumentTree(context, source, target) }
+                        }
+                    } else {
+                        usbClipboard.forEach { source -> runCatching { copyDocumentToFile(context, source, current) } }
                     }
+                    usbClipboard = emptyList()
+                    refresh++
                 }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (usbClipboard.isNotEmpty()) Color.White else Muted) }
                 IconButton(enabled = selectedUsbFiles.isNotEmpty(), onClick = {
                     selectedUsbFiles.toList().forEach { runCatching { it.delete() } }
@@ -683,6 +687,22 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     }
 }
 
+
+
+private fun copyDocumentToFile(context: Context, source: DocumentFile, destination: File) {
+    val name = source.name ?: "Copied item"
+    if (source.isDirectory) {
+        val targetDir = File(destination, name)
+        if (!targetDir.exists() && !targetDir.mkdirs()) throw IllegalStateException("Cannot create folder: $name")
+        source.listFiles().forEach { child -> copyDocumentToFile(context, child, targetDir) }
+    } else {
+        val target = File(destination, name)
+        context.contentResolver.openInputStream(source.uri).use { input ->
+            requireNotNull(input) { "Cannot read source: $name" }
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
+    }
+}
 
 private fun copyDocumentTree(context: Context, source: DocumentFile, destination: DocumentFile) {
     val name = source.name ?: "Copied item"
