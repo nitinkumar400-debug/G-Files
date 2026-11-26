@@ -140,6 +140,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var settingsOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     val selectedFiles = remember { mutableStateListOf<File>() }
+    val selectedUsbFiles = remember { mutableStateListOf<DocumentFile>() }
+    var usbClipboard by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
     var moveMode by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -162,9 +164,11 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         }
     }
 
-    BackHandler(enabled = selectedFiles.isNotEmpty() || !home || page != "LOCAL") {
+    BackHandler(enabled = selectedFiles.isNotEmpty() || selectedUsbFiles.isNotEmpty() || !home || page != "LOCAL") {
         if (selectedFiles.isNotEmpty()) {
             selectedFiles.clear()
+        } else if (selectedUsbFiles.isNotEmpty()) {
+            selectedUsbFiles.clear()
         } else if (page == "USB" && usbStack.size > 1) {
             usbStack = usbStack.dropLast(1)
         } else if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
@@ -345,16 +349,25 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                     } else {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(usbFiles, key = { it.uri.toString() }) { item ->
-                                Card(colors = CardDefaults.cardColors(containerColor = card), modifier = Modifier.fillMaxWidth()
-                                    .clickable {
-                                        if (item.isDirectory) usbStack = usbStack + item
-                                        else runCatching {
-                                            val mime = context.contentResolver.getType(item.uri) ?: "*/*"
-                                            context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, mime)
-                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
-                                        }
-                                    }) {
+                                Card(colors = CardDefaults.cardColors(containerColor = if (selectedUsbFiles.contains(item)) Blue.copy(alpha = .28f) else card),
+                                    modifier = Modifier.fillMaxWidth().combinedClickable(
+                                        onClick = {
+                                            if (selectedUsbFiles.isNotEmpty()) {
+                                                if (selectedUsbFiles.contains(item)) selectedUsbFiles.remove(item) else selectedUsbFiles.add(item)
+                                            } else if (item.isDirectory) usbStack = usbStack + item
+                                            else runCatching {
+                                                val mime = context.contentResolver.getType(item.uri) ?: "*/*"
+                                                context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, mime)
+                                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                            }
+                                        },
+                                        onLongClick = { if (!selectedUsbFiles.contains(item)) selectedUsbFiles.add(item) }
+                                    )) {
                                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        if (selectedUsbFiles.contains(item)) {
+                                            Icon(Icons.Default.CheckCircle, "Selected", tint = Color(0xFF69F0AE), modifier = Modifier.size(25.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                        }
                                         Icon(if (item.isDirectory) Icons.Default.Folder else Icons.Default.InsertDriveFile,
                                             null, tint = Color(0xFFFFC928), modifier = Modifier.size(32.dp))
                                         Spacer(Modifier.width(12.dp))
@@ -483,7 +496,44 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                 }
             }
         }
-     if (selectedFiles.isNotEmpty()) {
+     if (page == "USB" && selectedUsbFiles.isNotEmpty()) {
+        Surface(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)
+                .navigationBarsPadding(),
+            color = Color(0xE6224568), shape = RoundedCornerShape(24.dp), shadowElevation = 18.dp
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Text("${selectedUsbFiles.size}", color = Color.White, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { usbClipboard = selectedUsbFiles.toList(); selectedUsbFiles.clear() }) {
+                    Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
+                }
+                IconButton(enabled = usbClipboard.isNotEmpty(), onClick = {
+                    val target = usbStack.lastOrNull()
+                    if (target != null) {
+                        usbClipboard.forEach { source -> runCatching { copyDocumentTree(context, source, target) } }
+                        usbClipboard = emptyList()
+                        refresh++
+                    }
+                }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (usbClipboard.isNotEmpty()) Color.White else Muted) }
+                IconButton(onClick = {
+                    selectedUsbFiles.toList().forEach { runCatching { it.delete() } }
+                    selectedUsbFiles.clear(); refresh++
+                }) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF8A80)) }
+                IconButton(onClick = {
+                    val item = selectedUsbFiles.singleOrNull()
+                    if (item != null) {
+                        val input = android.widget.EditText(context).apply { setText(item.name ?: "") }
+                        android.app.AlertDialog.Builder(context).setTitle("Rename").setView(input)
+                            .setPositiveButton("Save") { _, _ -> runCatching { item.renameTo(input.text.toString()) }; refresh++ }
+                            .setNegativeButton("Cancel", null).show()
+                    }
+                    selectedUsbFiles.clear()
+                }) { Icon(Icons.Default.Edit, "Rename", tint = if (selectedUsbFiles.size == 1) Color.White else Muted) }
+            }
+        }
+    }
+    if (selectedFiles.isNotEmpty()) {
         Surface(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)
                 .navigationBarsPadding(),
@@ -630,6 +680,26 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
             text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true) },
             confirmButton = { TextButton(onClick = { val dest = File(f.parentFile, renameText); if (renameText.isNotBlank()) f.renameTo(dest); renameTarget = null; refresh++ }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel") } })
+    }
+}
+
+
+private fun copyDocumentTree(context: Context, source: DocumentFile, destination: DocumentFile) {
+    val name = source.name ?: "Copied item"
+    if (source.isDirectory) {
+        val targetDir = destination.findFile(name)?.takeIf { it.isDirectory } ?: destination.createDirectory(name)
+            ?: throw IllegalStateException("Cannot create folder: $name")
+        source.listFiles().forEach { child -> copyDocumentTree(context, child, targetDir) }
+    } else {
+        val mime = source.type ?: "application/octet-stream"
+        val target = destination.createFile(mime, name) ?: throw IllegalStateException("Cannot create file: $name")
+        context.contentResolver.openInputStream(source.uri).use { input ->
+            requireNotNull(input) { "Cannot read source: $name" }
+            context.contentResolver.openOutputStream(target.uri, "wt").use { output ->
+                requireNotNull(output) { "Cannot write destination: $name" }
+                input.copyTo(output)
+            }
+        }
     }
 }
 
