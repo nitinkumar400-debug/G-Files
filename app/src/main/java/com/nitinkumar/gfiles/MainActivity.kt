@@ -1,6 +1,10 @@
 package com.nitinkumar.gfiles
 
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import android.os.storage.StorageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.ThumbnailUtils
@@ -55,6 +59,25 @@ private val Cyan = Color(0xFF68E1FD)
 private val Muted = Color(0xFF9DB2C9)
 
 class MainActivity : ComponentActivity() {
+    private var usbRefresh by mutableIntStateOf(0)
+    private val storageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) { usbRefresh++ }
+    }
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_MEDIA_MOUNTED)
+            addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+            addAction(Intent.ACTION_MEDIA_REMOVED)
+            addDataScheme("file")
+        }
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(storageReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else @Suppress("DEPRECATION") registerReceiver(storageReceiver, filter)
+    }
+    override fun onStop() {
+        runCatching { unregisterReceiver(storageReceiver) }
+        super.onStop()
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, true)
@@ -78,6 +101,7 @@ class MainActivity : ComponentActivity() {
                     startActivity(intent)
                 },
                 headerImageUri = headerImage,
+                usbRefresh = usbRefresh,
                 chooseHeaderImage = { imagePicker.launch(arrayOf("image/*")) },
                 openFile = { file ->
                     val isApk = file.extension.equals("apk", true)
@@ -96,7 +120,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUri: String?, chooseHeaderImage: () -> Unit, openFile: (File) -> Unit) {
+fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUri: String?, usbRefresh: Int, chooseHeaderImage: () -> Unit, openFile: (File) -> Unit) {
     var current by remember { mutableStateOf(Environment.getExternalStorageDirectory()) }
     var refresh by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -134,7 +158,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     val bg = if (dark) Navy else Color(0xFFF2F6FC)
     val fg = if (dark) Color.White else Color(0xFF102033)
     val card = if (dark) Panel else Color.White
-    val storage = remember(refresh) {
+    val usbVolumes = remember(refresh, usbRefresh) {\n        if (Build.VERSION.SDK_INT >= 30) runCatching {\n            (context.getSystemService(Context.STORAGE_SERVICE) as StorageManager).storageVolumes\n                .filter { it.isRemovable && it.state == Environment.MEDIA_MOUNTED }\n                .mapNotNull { volume -> volume.directory?.takeIf { it.exists() && it.canRead() } }\n        }.getOrDefault(emptyList()) else emptyList()\n    }\n    val storage = remember(refresh) {
         runCatching {
             val stat = StatFs(Environment.getExternalStorageDirectory().path)
             val total = stat.totalBytes
@@ -223,8 +247,20 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                     current = File(Environment.getExternalStorageDirectory(), "Download")
                                     home = false
                                 }
+                                HomeTile("USB Drive", Icons.Default.Usb, Color(0xFF00BFA5), Modifier.weight(1f)) {
+                                    if (usbVolumes.isNotEmpty()) {
+                                        current = usbVolumes.first()
+                                        home = false
+                                        page = "LOCAL"
+                                    } else {
+                                        infoDialog = "USB drive not detected. Connect a USB OTG drive and refresh."
+                                    }
+                                }
                             }
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text(if (usbVolumes.isEmpty()) "USB Drive: Not connected" else "USB Drive: ${usbVolumes.size} connected",
+                                color = if (usbVolumes.isEmpty()) Muted else Color(0xFF69F0AE),
+                                style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 }
