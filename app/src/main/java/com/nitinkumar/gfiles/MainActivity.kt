@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import java.io.File
 import java.text.DateFormat
@@ -96,6 +97,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var renameText by remember { mutableStateOf("") }
     var infoDialog by remember { mutableStateOf<String?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var searchOpen by remember { mutableStateOf(false) }
 
     BackHandler(enabled = !home || page != "LOCAL") {
         if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
@@ -129,10 +131,13 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
             ) {
                 Icon(Icons.Default.Folder, null, tint = Color.White, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(top = 5.dp)) {
                     Text("G Files", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(if (home) "Your storage at a glance" else current.name.ifBlank { "Internal storage" },
                         color = Color.White.copy(alpha = .72f), style = MaterialTheme.typography.labelSmall)
+                }
+                IconButton(onClick = { searchOpen = true }) {
+                    Icon(Icons.Default.Search, "Search", tint = Color.White)
                 }
                 IconButton(onClick = { dark = !dark }) {
                     Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Theme", tint = Color.White)
@@ -157,8 +162,9 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             Box(Modifier.fillMaxSize().background(Color(0x66071426)))
                         }
-                        Text("G Files", modifier = Modifier.align(Alignment.BottomStart).padding(20.dp),
-                            color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("Nitin Chaudhary", modifier = Modifier.align(Alignment.BottomStart).padding(start = 22.dp, bottom = 24.dp),
+                            color = Color.White, style = MaterialTheme.typography.headlineMedium,
+                            fontFamily = FontFamily.Cursive, fontWeight = FontWeight.Bold)
                     }
 
                     Row(Modifier.fillMaxWidth().background(card), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -212,9 +218,6 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                         IconButton(onClick = { refresh++ }) { Icon(Icons.Default.Refresh, "Refresh", tint = fg) }
                         IconButton(onClick = { home = true; query = "" }) { Icon(Icons.Default.Home, "Home", tint = fg) }
                     }
-                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search files and folders") }, leadingIcon = { Icon(Icons.Default.Search, null) },
-                        singleLine = true, shape = RoundedCornerShape(16.dp))
                     if (!hasAccess()) {
                         Card(colors = CardDefaults.cardColors(containerColor = card), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(18.dp)) {
@@ -285,6 +288,19 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         }
     }
 
+    if (searchOpen) {
+        AlertDialog(onDismissRequest = { searchOpen = false },
+            title = { Text("Search files and folders") },
+            text = {
+                OutlinedTextField(value = query, onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    placeholder = { Text("Enter file or folder name") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear") } })
+            },
+            confirmButton = { TextButton(onClick = { searchOpen = false; home = false }) { Text("Search") } },
+            dismissButton = { TextButton(onClick = { searchOpen = false; query = "" }) { Text("Cancel") } })
+    }
     if (settingsOpen) {
         AlertDialog(onDismissRequest = { settingsOpen = false }, title = { Text("Settings") },
             text = { Text("Home header image") },
