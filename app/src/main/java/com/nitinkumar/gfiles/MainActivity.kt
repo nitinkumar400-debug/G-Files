@@ -17,6 +17,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -89,6 +90,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUri: String?, chooseHeaderImage: () -> Unit, openFile: (File) -> Unit) {
     var current by remember { mutableStateOf(Environment.getExternalStorageDirectory()) }
     var refresh by remember { mutableIntStateOf(0) }
