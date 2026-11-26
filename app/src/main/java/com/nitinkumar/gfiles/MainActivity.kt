@@ -152,7 +152,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
             ) {
                 Icon(Icons.Default.Folder, null, tint = Color.White, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f).padding(top = 12.dp)) {
+                Column(Modifier.weight(1f).padding(top = 24.dp)) {
                     Text("G Files", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(if (home) "Your storage at a glance" else current.name.ifBlank { "Internal storage" },
                         color = Color.White.copy(alpha = .72f), style = MaterialTheme.typography.labelSmall)
