@@ -107,6 +107,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var searchOpen by remember { mutableStateOf(false) }
     val selectedFiles = remember { mutableStateListOf<File>() }
     var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
+    var moveMode by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     BackHandler(enabled = !home || page != "LOCAL") {
@@ -250,7 +251,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 gridItems(files, key = { it.absolutePath }) { file ->
-                                    Card(colors = CardDefaults.cardColors(containerColor = card.copy(alpha = .96f)),
+                                    Card(colors = CardDefaults.cardColors(containerColor = if (selectedFiles.contains(file)) Blue.copy(alpha = .28f) else card.copy(alpha = .96f)),
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier.fillMaxWidth().combinedClickable(
                                             onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else openFile(file) },
@@ -282,6 +283,10 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                         onLongClick = { if (!selectedFiles.contains(file)) selectedFiles.add(file) }
                                     )) {
                                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        if (selectedFiles.contains(file)) {
+                                            Icon(Icons.Default.CheckCircle, "Selected", tint = Color(0xFF69F0AE), modifier = Modifier.size(25.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                        }
                                         Icon(if (file.isDirectory) Icons.Default.Folder else fileIcon(file), null,
                                             tint = if (file.isDirectory) Cyan else Blue, modifier = Modifier.size(28.dp))
                                         Spacer(Modifier.width(12.dp))
@@ -308,16 +313,19 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 7.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                Text("${selectedFiles.size}", color = Color.White, fontWeight = FontWeight.Bold)
-                IconButton(onClick = { clipboardFiles = selectedFiles.toList(); selectedFiles.clear() }) {
+                Text("${selectedFiles.size} selected", color = Color.White, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { clipboardFiles = selectedFiles.toList(); moveMode = false }) {
                     Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
                 }
                 IconButton(enabled = clipboardFiles.isNotEmpty(), onClick = {
                     clipboardFiles.forEach { source -> runCatching {
                         val target = File(current, source.name)
-                        if (source.isDirectory) source.copyRecursively(target, true) else source.copyTo(target, true)
+                        if (source.absolutePath != target.absolutePath) {
+                            if (source.isDirectory) source.copyRecursively(target, true) else source.copyTo(target, true)
+                            if (moveMode) source.deleteRecursively()
+                        }
                     } }
-                    clipboardFiles = emptyList(); refresh++
+                    clipboardFiles = emptyList(); moveMode = false; selectedFiles.clear(); refresh++
                 }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (clipboardFiles.isNotEmpty()) Color.White else Muted) }
                 IconButton(onClick = { selectedFiles.toList().forEach { runCatching { it.deleteRecursively() } }; selectedFiles.clear(); refresh++ }) {
                     Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF8A80))
