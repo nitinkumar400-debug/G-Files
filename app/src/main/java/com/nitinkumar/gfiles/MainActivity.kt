@@ -106,6 +106,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var settingsOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     val selectedFiles = remember { mutableStateListOf<File>() }
+    var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
+    val context = LocalContext.current
 
     BackHandler(enabled = !home || page != "LOCAL") {
         if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
@@ -132,7 +134,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
 
     MaterialTheme(colorScheme = if (dark) darkColorScheme(primary = Blue, background = bg, surface = card)
         else lightColorScheme(primary = Color(0xFF1565C0), background = bg, surface = card)) {
-        Column(Modifier.fillMaxSize().background(bg)) {
+        Box(Modifier.fillMaxSize().background(bg)) {
+        Column(Modifier.fillMaxSize()) {
             Row(
                 Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFF087FAE), Color(0xFF164E91), Color(0xFF172C55)))).padding(horizontal = 18.dp, vertical = 15.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -299,17 +302,46 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     }
 
     if (selectedFiles.isNotEmpty()) {
-        Surface(Modifier.fillMaxWidth().padding(10.dp), color = Color(0xCC173A5D), shape = RoundedCornerShape(22.dp), shadowElevation = 12.dp) {
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                Text(selectedFiles.size.toString() + " selected", color = Color.White)
-                IconButton(onClick = { val dest = File(Environment.getExternalStorageDirectory(), "Download"); selectedFiles.toList().forEach { f -> runCatching { val t = File(dest, f.name); if (f.isDirectory) f.copyRecursively(t, true) else f.copyTo(t, true) } }; selectedFiles.clear(); refresh++ }) { Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White) }
-                IconButton(onClick = { val dest = File(Environment.getExternalStorageDirectory(), "Download"); selectedFiles.toList().forEach { f -> runCatching { f.renameTo(File(dest, f.name)) } }; selectedFiles.clear(); refresh++ }) { Icon(Icons.Default.DriveFileMove, "Move", tint = Color.White) }
-                IconButton(onClick = { selectedFiles.toList().forEach { it.deleteRecursively() }; selectedFiles.clear(); refresh++ }) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF8A80)) }
-                IconButton(onClick = { selectedFiles.clear() }) { Icon(Icons.Default.Close, "Cancel", tint = Color.White) }
+        Surface(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)
+                .navigationBarsPadding(),
+            color = Color(0xE6224568), shape = RoundedCornerShape(24.dp), shadowElevation = 18.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .22f))
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Text("${selectedFiles.size}", color = Color.White, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { clipboardFiles = selectedFiles.toList(); selectedFiles.clear() }) {
+                    Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
+                }
+                IconButton(enabled = clipboardFiles.isNotEmpty(), onClick = {
+                    clipboardFiles.forEach { source -> runCatching {
+                        val target = File(current, source.name)
+                        if (source.isDirectory) source.copyRecursively(target, true) else source.copyTo(target, true)
+                    } }
+                    clipboardFiles = emptyList(); refresh++
+                }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (clipboardFiles.isNotEmpty()) Color.White else Muted) }
+                IconButton(onClick = { selectedFiles.toList().forEach { runCatching { it.deleteRecursively() } }; selectedFiles.clear(); refresh++ }) {
+                    Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF8A80))
+                }
+                IconButton(onClick = {
+                    runCatching {
+                        val uris = ArrayList<Uri>()
+                        selectedFiles.forEach { file -> uris.add(androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file)) }
+                        val share = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*")
+                            .putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(Intent.createChooser(share, "Share files"))
+                    }
+                }) { Icon(Icons.Default.Share, "Share", tint = Color.White) }
+                IconButton(enabled = selectedFiles.size == 1, onClick = {
+                    selectedFiles.firstOrNull()?.let { renameTarget = it; renameText = it.name }
+                    selectedFiles.clear()
+                }) { Icon(Icons.Default.Edit, "Rename", tint = if (selectedFiles.size == 1) Color.White else Muted) }
             }
         }
     }
-
+    }
     if (searchOpen) {
         AlertDialog(onDismissRequest = { searchOpen = false },
             title = { Text("Search files and folders") },
