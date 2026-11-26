@@ -152,19 +152,10 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
             ) {
                 Icon(Icons.Default.Folder, null, tint = Color.White, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f).padding(top = 5.dp)) {
+                Column(Modifier.weight(1f).padding(top = 12.dp)) {
                     Text("G Files", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(if (home) "Your storage at a glance" else current.name.ifBlank { "Internal storage" },
                         color = Color.White.copy(alpha = .72f), style = MaterialTheme.typography.labelSmall)
-                }
-                IconButton(onClick = { searchOpen = true }) {
-                    Icon(Icons.Default.Search, "Search", tint = Color.White)
-                }
-                IconButton(onClick = { dark = !dark }) {
-                    Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Theme", tint = Color.White)
-                }
-                IconButton(onClick = { settingsOpen = true }) {
-                    Icon(Icons.Default.MoreVert, "More", tint = Color.White)
                 }
             }
             }
@@ -187,42 +178,18 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                             Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF087FAE), Color(0xFF07508B), Color(0xFF061A35)))))
                         }
                         Row(
-                            Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 140.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 140.dp),
+                            horizontalArrangement = Arrangement.spacedBy(22.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            listOf("Search", "Theme", "Settings").forEach { action ->
-                                Surface(
-                                    onClick = {
-                                        when (action) {
-                                            "Search" -> searchOpen = true
-                                            "Theme" -> dark = !dark
-                                            else -> settingsOpen = true
-                                        }
-                                    },
-                                    color = Color(0x553A9DD8),
-                                    shape = RoundedCornerShape(16.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .35f)),
-                                    shadowElevation = 8.dp
-                                ) {
-                                    Column(
-                                        Modifier.width(68.dp).height(68.dp).padding(8.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(
-                                            when (action) {
-                                                "Search" -> Icons.Default.Search
-                                                "Theme" -> if (dark) Icons.Default.LightMode else Icons.Default.DarkMode
-                                                else -> Icons.Default.Settings
-                                            },
-                                            contentDescription = action,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(25.dp)
-                                        )
-                                        Text(action, color = Color.White, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
+                            IconButton(onClick = { searchOpen = true }, modifier = Modifier.size(34.dp)) {
+                                Icon(Icons.Default.Search, "Search", tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { dark = !dark }, modifier = Modifier.size(34.dp)) {
+                                Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Theme", tint = Color.White, modifier = Modifier.size(19.dp))
+                            }
+                            IconButton(onClick = { settingsOpen = true }, modifier = Modifier.size(34.dp)) {
+                                Icon(Icons.Default.Settings, "Settings", tint = Color.White, modifier = Modifier.size(20.dp))
                             }
                         }
                         Text("Nitin Chaudhary", modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 76.dp),
