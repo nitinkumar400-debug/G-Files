@@ -476,7 +476,7 @@ private fun FileThumbnail(file: File, modifier: Modifier = Modifier, tint: Color
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         } else {
             Icon(if (file.isDirectory) Icons.Default.Folder else fileIcon(file), null,
-                tint = tint, modifier = Modifier.size(42.dp))
+                tint = tint, modifier = Modifier.size(if (file.isDirectory) 58.dp else 42.dp))
         }
     }
 }
