@@ -158,7 +158,18 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     val bg = if (dark) Navy else Color(0xFFF2F6FC)
     val fg = if (dark) Color.White else Color(0xFF102033)
     val card = if (dark) Panel else Color.White
-    val usbVolumes = remember(refresh, usbRefresh) {\n        if (Build.VERSION.SDK_INT >= 30) runCatching {\n            (context.getSystemService(Context.STORAGE_SERVICE) as StorageManager).storageVolumes\n                .filter { it.isRemovable && it.state == Environment.MEDIA_MOUNTED }\n                .mapNotNull { volume -> volume.directory?.takeIf { it.exists() && it.canRead() } }\n        }.getOrDefault(emptyList()) else emptyList()\n    }\n    val storage = remember(refresh) {
+    val usbVolumes: List<File> = remember(refresh, usbRefresh) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            runCatching {
+                val manager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+                manager.storageVolumes
+                    .filter { volume -> volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED }
+                    .mapNotNull { volume -> volume.directory?.takeIf { dir -> dir.exists() && dir.canRead() } }
+            }.getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
+    }\n    val storage = remember(refresh) {
         runCatching {
             val stat = StatFs(Environment.getExternalStorageDirectory().path)
             val total = stat.totalBytes
