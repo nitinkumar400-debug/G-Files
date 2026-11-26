@@ -401,15 +401,48 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                 val destination = File(archive.parentFile, archive.nameWithoutExtension)
                 val result = runCatching {
                     destination.mkdirs()
-                    ZipFile(archive).use { zip -> zip.entries().asSequence().forEach { entry ->
-                        val out = File(destination, entry.name)
+                    ZipFile(archive).use { zip ->
+                        val entries = zip.entries().asSequence().toList()
+                        require(entries.size <= 2000) { "ZIP contains too many entries (limit: 2,000)" }
+                        var totalWritten = 0L
                         val rootPath = destination.canonicalPath + File.separator
-                        require(out.canonicalPath == destination.canonicalPath || out.canonicalPath.startsWith(rootPath)) { "Unsafe archive path" }
-                        if (entry.isDirectory) out.mkdirs() else {
-                            out.parentFile?.mkdirs()
-                            zip.getInputStream(entry).use { input -> out.outputStream().use { output -> input.copyTo(output) } }
+                        val seenPaths = HashSet<String>()
+                        entries.forEach { entry ->
+                            val out = File(destination, entry.name)
+                            val canonical = out.canonicalPath
+                            require(canonical == destination.canonicalPath || canonical.startsWith(rootPath)) {
+                                "Unsafe archive path: ${entry.name}"
+                            }
+                            require(seenPaths.add(canonical)) { "Duplicate archive path: ${entry.name}" }
+                            if (entry.isDirectory) {
+                                out.mkdirs()
+                            } else {
+                                require(entry.size <= 100L * 1024 * 1024 || entry.size == -1L) {
+                                    "A file in this ZIP exceeds the 100 MB per-file limit"
+                                }
+                                out.parentFile?.mkdirs()
+                                var entryWritten = 0L
+                                zip.getInputStream(entry).use { input ->
+                                    out.outputStream().buffered().use { output ->
+                                        val buffer = ByteArray(16 * 1024)
+                                        while (true) {
+                                            val count = input.read(buffer)
+                                            if (count < 0) break
+                                            entryWritten += count
+                                            totalWritten += count
+                                            require(entryWritten <= 100L * 1024 * 1024) {
+                                                "A file in this ZIP exceeds the 100 MB per-file limit"
+                                            }
+                                            require(totalWritten <= 500L * 1024 * 1024) {
+                                                "Extracted data exceeds the 500 MB safety limit"
+                                            }
+                                            output.write(buffer, 0, count)
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    } }
+                    }
                 }
                 zipMessage = result.fold({ "Extracted to: ${destination.absolutePath}" }, { "Extraction failed: ${it.message}" })
                 zipTarget = null; refresh++
