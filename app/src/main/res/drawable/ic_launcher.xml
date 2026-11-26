@@ -1,13 +1,23 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path android:fillColor="#06152F" android:pathData="M0,0h108v108h-108z"/>
-    <path android:fillColor="#0A2D5C" android:pathData="M0,16c0,-9 7,-16 16,-16h76c9,0 16,7 16,16v76c0,9 -7,16 -16,16h-76c-9,0 -16,-7 -16,-16z"/>
-    <path android:fillColor="#0756A8" android:pathData="M10,35c0,-6 5,-11 11,-11h24l10,11h32c6,0 11,5 11,11v34c0,7 -5,12 -12,12h-64c-7,0 -12,-5 -12,-12z"/>
-    <path android:fillColor="#12B9F2" android:pathData="M10,43c0,-6 5,-11 11,-11h24l10,10h32c6,0 11,5 11,11v30c0,6 -5,11 -11,11h-66c-6,0 -11,-5 -11,-11z"/>
-    <path android:fillColor="#FFC928" android:pathData="M18,48h72v34c0,5 -4,9 -9,9h-54c-5,0 -9,-4 -9,-9z"/>
-    <path android:fillColor="#F8FCFF" android:pathData="M45,52h18v7h10l-19,22 -19,-22h10z"/>
-    <path android:fillColor="#FFFFFF" android:pathData="M24,39h59c3,0 5,1 7,3h-72c1,-2 3,-3 6,-3z"/>
+    android:viewportWidth="600"
+    android:viewportHeight="600">
+    <!-- Rear blue folder -->
+    <path android:fillColor="#12617D" android:pathData="M34,125 C34,112 45,101 58,101 H204 C217,101 226,108 232,121 L258,163 L92,485 C84,475 78,458 75,438 L34,125 Z"/>
+    <path android:fillColor="#279CB5" android:pathData="M40,121 C40,110 50,102 62,102 H205 C217,102 225,109 231,122 L251,155 L89,466 L42,128 Z"/>
+    <!-- Red folder -->
+    <path android:fillColor="#7F111D" android:pathData="M70,153 C70,136 83,122 101,122 H395 C417,122 428,134 435,155 L452,193 L91,484 L70,153 Z"/>
+    <path android:fillColor="#D51F2D" android:pathData="M77,155 C77,137 90,123 108,123 H397 C416,123 427,136 434,155 L449,190 L91,479 Z"/>
+    <!-- Yellow folder -->
+    <path android:fillColor="#C88A08" android:pathData="M126,181 C132,160 146,147 168,147 H477 C495,147 506,160 506,179 L502,215 L91,487 L126,181 Z"/>
+    <path android:fillColor="#FFD21B" android:pathData="M134,181 C139,160 153,148 174,148 H478 C495,148 505,161 505,180 L501,213 L92,480 Z"/>
+    <!-- Front folder body -->
+    <path android:fillColor="#07506D" android:pathData="M183,186 H548 C560,186 569,195 566,207 L481,467 C477,486 465,500 446,500 H105 C93,500 84,492 82,480 L170,212 C173,196 177,186 183,186 Z"/>
+    <path android:fillColor="#4CB9CC" android:pathData="M185,187 H550 C561,187 568,195 565,207 L89,485 L170,215 C174,198 178,187 185,187 Z"/>
+    <!-- Faceted blue shading -->
+    <path android:fillColor="#329CB7" android:pathData="M565,207 L509,388 L89,485 Z"/>
+    <path android:fillColor="#247F9D" android:pathData="M509,388 L481,467 C477,486 465,500 446,500 H105 L89,485 Z"/>
+    <path android:fillColor="#1B5D78" android:pathData="M509,388 L481,467 C477,486 465,500 446,500 H105 L89,485 Z"/>
+    <path android:fillColor="#2D8EAA" android:pathData="M185,187 H550 C561,187 568,195 565,207 L89,485 L170,215 C174,198 178,187 185,187 Z" android:fillAlpha="0.12"/>
 </vector>
