@@ -287,7 +287,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                 Text(if (usbVolumes.isEmpty()) "USB Drive: Not connected" else "USB Drive: ${usbVolumes.size} connected",
                                     color = if (usbVolumes.isEmpty()) Muted else Color(0xFF69F0AE),
                                     style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f).padding(start = 4.dp))
-                                TextButton(onClick = { refresh++; usbRefresh++ }) {
+                                TextButton(onClick = { refresh++ }) {
                                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
                                     Text("Refresh USB")
