@@ -137,6 +137,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         else lightColorScheme(primary = Color(0xFF1565C0), background = bg, surface = card)) {
         Box(Modifier.fillMaxSize().background(bg)) {
         Column(Modifier.fillMaxSize()) {
+            if (!home || page != "LOCAL") {
             Row(
                 Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFF087FAE), Color(0xFF164E91), Color(0xFF172C55)))).padding(horizontal = 18.dp, vertical = 15.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -158,47 +159,56 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                     Icon(Icons.Default.MoreVert, "More", tint = Color.White)
                 }
             }
+            }
 
             if (home && page == "LOCAL") {
                 Column(Modifier.weight(1f)) {
                     Box(
-                        Modifier.fillMaxWidth().height(190.dp)
-                            .background(Brush.verticalGradient(listOf(Color(0xFF087FAE), Color(0xFF14518C), bg)))
+                        Modifier.fillMaxWidth().height(330.dp)
+                            .background(Brush.verticalGradient(listOf(Color(0xFF07517D), Color(0xFF06345D), bg)))
                     ) {
                         val context = LocalContext.current
                         val headerBitmap = remember(headerImageUri) {
                             runCatching { headerImageUri?.let { context.contentResolver.openInputStream(Uri.parse(it))?.use { stream -> BitmapFactory.decodeStream(stream) } } }.getOrNull()
                         }
                         if (headerBitmap != null) {
-                            Image(bitmap = headerBitmap.asImageBitmap(), contentDescription = "Custom home header",
+                            Image(bitmap = headerBitmap.asImageBitmap(), contentDescription = "Blue painted home background",
                                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                            Box(Modifier.fillMaxSize().background(Color(0x66071426)))
+                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x33001835), Color(0x22001835), Color(0xDD001B36)))))
+                        } else {
+                            Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF087FAE), Color(0xFF07508B), Color(0xFF061A35)))))
                         }
-                        Text("Nitin Chaudhary", modifier = Modifier.align(Alignment.BottomStart).padding(start = 22.dp, bottom = 24.dp),
+                        Row(Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search", tint = Color.White, modifier = Modifier.size(28.dp)) }
+                            IconButton(onClick = { dark = !dark }) { Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Theme", tint = Color.White, modifier = Modifier.size(26.dp)) }
+                            IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.MoreVert, "Settings", tint = Color.White) }
+                        }
+                        Text("Nitin Chaudhary", modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 76.dp),
                             color = Color.White, style = MaterialTheme.typography.headlineMedium,
                             fontFamily = FontFamily.Cursive, fontWeight = FontWeight.Bold)
+                        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(85.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE906203D)))))
                     }
 
-                    Row(Modifier.fillMaxWidth().background(card), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Row(Modifier.fillMaxWidth().background(Color(0xFF06223F)), horizontalArrangement = Arrangement.SpaceEvenly) {
                         listOf("LOCAL", "NETWORK").forEach { tab ->
                             Column(
                                 Modifier.weight(1f).clickable { page = tab; home = tab == "LOCAL" },
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(tab, color = if (page == tab) Blue else fg.copy(alpha = .65f),
+                                Text(tab, color = if (page == tab) Color(0xFF00C8FF) else Color.White.copy(alpha = .72f),
                                     modifier = Modifier.padding(vertical = 15.dp), fontWeight = FontWeight.Bold)
-                                Box(Modifier.fillMaxWidth().height(3.dp).background(if (page == tab) Blue else Color.Transparent))
+                                Box(Modifier.fillMaxWidth().height(3.dp).background(if (page == tab) Color(0xFF00C8FF) else Color.Transparent))
                             }
                         }
                     }
 
                     if (page == "LOCAL") {
-                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                HomeTile("Main storage", Icons.Default.FolderSpecial, Color(0xFF5B6FE8), Modifier.weight(1f)) {
+                        Column(Modifier.fillMaxWidth().background(Navy).padding(16.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                HomeTile("Main Storage", Icons.Default.FolderSpecial, Color(0xFFFFB300), Modifier.weight(1f)) {
                                     current = Environment.getExternalStorageDirectory(); home = false
                                 }
-                                HomeTile("Downloads", Icons.Default.Downloading, Color(0xFF00AFA0), Modifier.weight(1f)) {
+                                HomeTile("Downloads", Icons.Default.FolderDownload, Color(0xFF078BFF), Modifier.weight(1f)) {
                                     current = File(Environment.getExternalStorageDirectory(), "Download")
                                     home = false
                                 }
@@ -414,11 +424,11 @@ private fun FileThumbnail(file: File, modifier: Modifier = Modifier, tint: Color
 @Composable
 private fun HomeTile(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color,
                      modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Column(modifier.background(Color.White.copy(alpha = .055f), RoundedCornerShape(18.dp))
-        .clickable(onClick = onClick).padding(vertical = 15.dp, horizontal = 5.dp),
+    Column(modifier.background(Brush.linearGradient(listOf(Color(0xCC06345A), Color(0xCC071C35))), RoundedCornerShape(24.dp))
+        .clickable(onClick = onClick).padding(vertical = 20.dp, horizontal = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(66.dp).background(tint, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size(32.dp))
+        Box(Modifier.size(84.dp).background(Brush.linearGradient(listOf(tint, tint.copy(alpha = .72f))), RoundedCornerShape(22.dp)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(48.dp))
         }
         Spacer(Modifier.height(8.dp))
         Text(title, color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
