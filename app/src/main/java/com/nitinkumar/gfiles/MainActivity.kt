@@ -1,6 +1,11 @@
 package com.nitinkumar.gfiles
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.ThumbnailUtils
+import android.os.Build
+import android.util.Size
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -8,11 +13,15 @@ import android.os.StatFs
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,6 +31,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,7 +75,6 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
     var query by remember { mutableStateOf("") }
     var dark by remember { mutableStateOf(true) }
     var grid by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf("All") }
     var page by remember { mutableStateOf("LOCAL") }
     var home by remember { mutableStateOf(true) }
     var menuFile by remember { mutableStateOf<File?>(null) }
@@ -137,7 +147,6 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                                 listOf("Images" to Icons.Default.Image, "Audio" to Icons.Default.AudioFile, "Videos" to Icons.Default.VideoFile).forEach { (name, icon) ->
                                     Row(
                                         Modifier.fillMaxWidth().clickable {
-                                            selectedTab = name
                                             home = false
                                         },
                                         verticalAlignment = Alignment.CenterVertically
@@ -180,11 +189,11 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                         Column(Modifier.fillMaxWidth().padding(16.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                 HomeTile("Main storage", Icons.Default.PhoneAndroid, Color(0xFF1598E8), Modifier.weight(1f)) {
-                                    current = Environment.getExternalStorageDirectory(); selectedTab = "All"; home = false
+                                    current = Environment.getExternalStorageDirectory(); home = false
                                 }
                                 HomeTile("Downloads", Icons.Default.Download, Color(0xFF278FE0), Modifier.weight(1f)) {
                                     current = File(Environment.getExternalStorageDirectory(), "Download")
-                                    selectedTab = "All"; home = false
+                                    home = false
                                 }
                                 HomeTile("Apps", Icons.Default.Android, Color(0xFF83B936), Modifier.weight(1f)) {
                                     infoDialog = "Apps manager is not available in this version yet."
@@ -224,17 +233,11 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                         }
                         IconButton(onClick = { grid = !grid }) { Icon(if (grid) Icons.Default.ViewList else Icons.Default.GridView, "Layout", tint = fg) }
                         IconButton(onClick = { refresh++ }) { Icon(Icons.Default.Refresh, "Refresh", tint = fg) }
-                        IconButton(onClick = { home = true; selectedTab = "All"; query = "" }) { Icon(Icons.Default.Home, "Home", tint = fg) }
+                        IconButton(onClick = { home = true; query = "" }) { Icon(Icons.Default.Home, "Home", tint = fg) }
                     }
                     OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Search files and folders") }, leadingIcon = { Icon(Icons.Default.Search, null) },
                         singleLine = true, shape = RoundedCornerShape(16.dp))
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("All", "Images", "Videos", "Audio", "Documents").forEach { tab ->
-                            FilterChip(selected = selectedTab == tab, onClick = { selectedTab = tab }, label = { Text(tab) })
-                        }
-                    }
                     if (!hasAccess()) {
                         Card(colors = CardDefaults.cardColors(containerColor = card), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(18.dp)) {
@@ -248,16 +251,37 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                             (current.listFiles()?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() }) ?: emptyList())
                                 .filter { !it.name.startsWith(".") || query.isNotBlank() }
                                 .filter { it.name.contains(query, true) }
-                                .filter { f -> when (selectedTab) {
-                                    "Images" -> f.isDirectory || f.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp", "gif", "heic")
-                                    "Videos" -> f.isDirectory || f.extension.lowercase() in listOf("mp4", "mkv", "mov", "webm", "3gp")
-                                    "Audio" -> f.isDirectory || f.extension.lowercase() in listOf("mp3", "wav", "m4a", "aac", "flac", "ogg")
-                                    "Documents" -> f.isDirectory || f.extension.lowercase() in listOf("pdf", "doc", "docx", "txt", "xls", "xlsx", "ppt", "pptx")
-                                    else -> true
-                                } }
                         }
                         if (files.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("This folder is empty", color = fg.copy(alpha = .6f))
+                        } else if (grid) {
+                            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 112.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                gridItems(files, key = { it.absolutePath }) { file ->
+                                    Card(colors = CardDefaults.cardColors(containerColor = card.copy(alpha = .96f)),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            if (file.isDirectory) current = file else openFile(file)
+                                        }) {
+                                        Column(Modifier.padding(9.dp)) {
+                                            FileThumbnail(file = file, modifier = Modifier.fillMaxWidth().height(112.dp),
+                                                tint = if (file.isDirectory) Cyan else Blue)
+                                            Spacer(Modifier.height(7.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(file.name, color = fg, fontWeight = FontWeight.Medium,
+                                                    maxLines = 2, modifier = Modifier.weight(1f),
+                                                    style = MaterialTheme.typography.bodySmall)
+                                                IconButton(onClick = { menuFile = file }, modifier = Modifier.size(30.dp)) {
+                                                    Icon(Icons.Default.MoreVert, "More", tint = fg, modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                            Text(if (file.isDirectory) "Folder" else formatSize(file.length()),
+                                                color = fg.copy(alpha = .55f), style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+                            }
                         } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(files, key = { it.absolutePath }) { file ->
                                 Card(colors = CardDefaults.cardColors(containerColor = card.copy(alpha = .96f)),
@@ -299,6 +323,31 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
             text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true) },
             confirmButton = { TextButton(onClick = { val dest = File(f.parentFile, renameText); if (renameText.isNotBlank()) f.renameTo(dest); renameTarget = null; refresh++ }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel") } })
+    }
+}
+
+@Composable
+private fun FileThumbnail(file: File, modifier: Modifier = Modifier, tint: Color) {
+    val bitmap = remember(file.absolutePath, file.lastModified()) {
+        runCatching {
+            when (file.extension.lowercase()) {
+                "jpg", "jpeg", "png", "webp", "gif", "heic" -> BitmapFactory.decodeFile(file.absolutePath)
+                "mp4", "mkv", "mov", "webm", "3gp" -> if (Build.VERSION.SDK_INT >= 29)
+                    ThumbnailUtils.createVideoThumbnail(file, Size(320, 320), null)
+                    else null
+                else -> null
+            }
+        }.getOrNull()
+    }
+    Box(modifier.background(Color(0xFF1A3552), RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center) {
+        if (bitmap != null) {
+            Image(bitmap = bitmap.asImageBitmap(), contentDescription = file.name,
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Icon(if (file.isDirectory) Icons.Default.Folder else fileIcon(file), null,
+                tint = tint, modifier = Modifier.size(42.dp))
+        }
     }
 }
 
