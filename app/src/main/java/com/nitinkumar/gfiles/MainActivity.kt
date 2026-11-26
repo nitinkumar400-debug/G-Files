@@ -496,7 +496,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                 }
             }
         }
-     if (page == "USB" && selectedUsbFiles.isNotEmpty()) {
+     if (page == "USB" && (selectedUsbFiles.isNotEmpty() || usbClipboard.isNotEmpty())) {
         Surface(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)
                 .navigationBarsPadding(),
@@ -504,8 +504,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 7.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                Text("${selectedUsbFiles.size}", color = Color.White, fontWeight = FontWeight.Bold)
-                IconButton(onClick = { usbClipboard = selectedUsbFiles.toList(); selectedUsbFiles.clear() }) {
+                Text(if (selectedUsbFiles.isNotEmpty()) "${selectedUsbFiles.size} selected" else "${usbClipboard.size} copied", color = Color.White, fontWeight = FontWeight.Bold)
+                IconButton(enabled = selectedUsbFiles.isNotEmpty(), onClick = { usbClipboard = selectedUsbFiles.toList(); selectedUsbFiles.clear() }) {
                     Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
                 }
                 IconButton(enabled = usbClipboard.isNotEmpty(), onClick = {
@@ -516,11 +516,11 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                         refresh++
                     }
                 }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (usbClipboard.isNotEmpty()) Color.White else Muted) }
-                IconButton(onClick = {
+                IconButton(enabled = selectedUsbFiles.isNotEmpty(), onClick = {
                     selectedUsbFiles.toList().forEach { runCatching { it.delete() } }
                     selectedUsbFiles.clear(); refresh++
                 }) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF8A80)) }
-                IconButton(onClick = {
+                IconButton(enabled = selectedUsbFiles.size == 1, onClick = {
                     val item = selectedUsbFiles.singleOrNull()
                     if (item != null) {
                         val input = android.widget.EditText(context).apply { setText(item.name ?: "") }
