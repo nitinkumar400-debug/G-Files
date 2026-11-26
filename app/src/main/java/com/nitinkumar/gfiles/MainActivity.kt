@@ -277,8 +277,24 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                             onLongClick = { if (!selectedFiles.contains(file)) selectedFiles.add(file) }
                                         )) {
                                         Column(Modifier.padding(9.dp)) {
-                                            FileThumbnail(file = file, modifier = Modifier.fillMaxWidth().height(112.dp),
-                                                tint = if (file.isDirectory) Cyan else Blue)
+                                            Box(Modifier.fillMaxWidth().height(112.dp)) {
+                                                FileThumbnail(file = file, modifier = Modifier.fillMaxSize(),
+                                                    tint = if (file.isDirectory) Cyan else Blue)
+                                                if (selectedFiles.contains(file)) {
+                                                    Surface(
+                                                        modifier = Modifier.align(Alignment.TopEnd).padding(7.dp).size(26.dp),
+                                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                                        color = Color(0xFF00BFA5),
+                                                        border = androidx.compose.foundation.BorderStroke(2.dp, Color.White),
+                                                        shadowElevation = 5.dp
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(Icons.Default.Check, contentDescription = "Selected",
+                                                                tint = Color.White, modifier = Modifier.size(18.dp))
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             Spacer(Modifier.height(7.dp))
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(file.name, color = fg, fontWeight = FontWeight.Medium,
