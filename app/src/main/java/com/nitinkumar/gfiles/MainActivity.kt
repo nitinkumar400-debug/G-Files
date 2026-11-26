@@ -118,8 +118,10 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var moveMode by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    BackHandler(enabled = !home || page != "LOCAL") {
-        if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
+    BackHandler(enabled = selectedFiles.isNotEmpty() || !home || page != "LOCAL") {
+        if (selectedFiles.isNotEmpty()) {
+            selectedFiles.clear()
+        } else if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
         else {
             val root = Environment.getExternalStorageDirectory()
             val parent = current.parentFile
