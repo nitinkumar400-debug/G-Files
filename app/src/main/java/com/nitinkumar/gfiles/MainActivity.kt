@@ -564,14 +564,26 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                     Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
                 }
                 IconButton(enabled = clipboardFiles.isNotEmpty(), onClick = {
-                    clipboardFiles.forEach { source -> runCatching {
-                        val target = File(current, source.name)
-                        if (source.absolutePath != target.absolutePath) {
-                            if (source.isDirectory) source.copyRecursively(target, true) else source.copyTo(target, true)
-                            if (moveMode) source.deleteRecursively()
+                    val pasteResult = runCatching {
+                        clipboardFiles.forEach { source ->
+                            if (page == "USB") {
+                                val target = usbStack.lastOrNull() ?: error("USB destination not available")
+                                copyFileToDocument(context, source, target)
+                            } else {
+                                val target = File(current, source.name)
+                                if (source.absolutePath != target.absolutePath) {
+                                    if (source.isDirectory) source.copyRecursively(target, true) else source.copyTo(target, true)
+                                    if (moveMode) source.deleteRecursively()
+                                }
+                            }
                         }
-                    } }
-                    clipboardFiles = emptyList(); moveMode = false; selectedFiles.clear(); refresh++
+                    }
+                    if (pasteResult.isSuccess) {
+                        clipboardFiles = emptyList(); moveMode = false; selectedFiles.clear(); refresh++
+                        android.widget.Toast.makeText(context, "Files copied", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Paste failed: ${pasteResult.exceptionOrNull()?.message ?: "Unknown error"}", android.widget.Toast.LENGTH_LONG).show()
+                    }
                 }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (clipboardFiles.isNotEmpty()) Color.White else Muted) }
                 IconButton(onClick = { selectedFiles.toList().forEach { runCatching { it.deleteRecursively() } }; selectedFiles.clear(); refresh++ }) {
                     Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF8A80))
@@ -728,6 +740,25 @@ private fun copyDocumentToFile(context: Context, source: DocumentFile, destinati
         context.contentResolver.openInputStream(source.uri).use { input ->
             requireNotNull(input) { "Cannot read source: $name" }
             target.outputStream().use { output -> input.copyTo(output) }
+        }
+    }
+}
+
+private fun copyFileToDocument(context: Context, source: File, destination: DocumentFile) {
+    val name = source.name
+    if (source.isDirectory) {
+        val target = destination.findFile(name)?.takeIf { it.isDirectory } ?: destination.createDirectory(name)
+            ?: throw IllegalStateException("Cannot create folder: $name")
+        source.listFiles()?.forEach { child -> copyFileToDocument(context, child, target) }
+    } else {
+        val mime = android.webkit.MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(source.extension.lowercase()) ?: "application/octet-stream"
+        val target = destination.createFile(mime, name) ?: throw IllegalStateException("Cannot create file: $name")
+        source.inputStream().use { input ->
+            context.contentResolver.openOutputStream(target.uri, "wt").use { output ->
+                requireNotNull(output) { "Cannot write destination: $name" }
+                input.copyTo(output)
+            }
         }
     }
 }
