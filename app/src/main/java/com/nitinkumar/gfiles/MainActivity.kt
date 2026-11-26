@@ -148,7 +148,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
         mutableStateOf(usbClipboardPrefs.getStringSet("usb_clipboard_uris", emptySet())?.toList() ?: emptyList())
     }
     val usbClipboard: List<DocumentFile> = remember(usbClipboardUris) {
-        usbClipboardUris.mapNotNull { raw -> runCatching { documentFileFromPersistedUri(context, Uri.parse(raw)) }.getOrNull() }
+        usbClipboardUris.mapNotNull { raw -> runCatching { documentFileFromPersistedUri(context, Uri.parse(usbTreeUri ?: return@runCatching null), Uri.parse(raw)) }.getOrNull() }
     }
     var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
     var moveMode by remember { mutableStateOf(false) }
@@ -516,17 +516,22 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                     Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
                 }
                 IconButton(enabled = usbClipboard.isNotEmpty(), onClick = {
-                    if (page == "USB") {
-                        val target = usbStack.lastOrNull()
-                        if (target != null) usbClipboard.forEach { source ->
-                            runCatching { copyDocumentTree(context, source, target) }
+                    val pasteResult = runCatching {
+                        if (page == "USB") {
+                            val target = usbStack.lastOrNull() ?: error("USB destination not available")
+                            usbClipboard.forEach { source -> copyDocumentTree(context, source, target) }
+                        } else {
+                            usbClipboard.forEach { source -> copyDocumentToFile(context, source, current) }
                         }
-                    } else {
-                        usbClipboard.forEach { source -> runCatching { copyDocumentToFile(context, source, current) } }
                     }
-                    usbClipboardUris = emptyList()
-                    usbClipboardPrefs.edit().remove("usb_clipboard_uris").apply()
-                    refresh++
+                    if (pasteResult.isSuccess) {
+                        usbClipboardUris = emptyList()
+                        usbClipboardPrefs.edit().remove("usb_clipboard_uris").apply()
+                        refresh++
+                        android.widget.Toast.makeText(context, "Files copied", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Copy failed: ${pasteResult.exceptionOrNull()?.message ?: "Unknown error"}", android.widget.Toast.LENGTH_LONG).show()
+                    }
                 }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (usbClipboard.isNotEmpty()) Color.White else Muted) }
                 IconButton(enabled = selectedUsbFiles.isNotEmpty(), onClick = {
                     selectedUsbFiles.toList().forEach { runCatching { it.delete() } }
@@ -698,11 +703,18 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
 
 
 
-private fun documentFileFromPersistedUri(context: Context, uri: Uri): DocumentFile? {
-    val authority = uri.authority ?: return null
-    val documentId = DocumentsContract.getDocumentId(uri)
-    val treeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId)
-    return DocumentFile.fromTreeUri(context, treeUri)
+private fun documentFileFromPersistedUri(context: Context, treeUri: Uri, documentUri: Uri): DocumentFile? {
+    val wantedId = DocumentsContract.getDocumentId(documentUri)
+    fun find(parent: DocumentFile): DocumentFile? {
+        if (runCatching { DocumentsContract.getDocumentId(parent.uri) }.getOrNull() == wantedId) return parent
+        if (!parent.isDirectory) return null
+        for (child in parent.listFiles()) {
+            val match = find(child)
+            if (match != null) return match
+        }
+        return null
+    }
+    return DocumentFile.fromTreeUri(context, treeUri)?.let { find(it) }
 }
 
 private fun copyDocumentToFile(context: Context, source: DocumentFile, destination: File) {
