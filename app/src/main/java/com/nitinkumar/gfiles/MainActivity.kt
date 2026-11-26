@@ -208,7 +208,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                 HomeTile("Main Storage", Icons.Default.FolderSpecial, Color(0xFFFFB300), Modifier.weight(1f)) {
                                     current = Environment.getExternalStorageDirectory(); home = false
                                 }
-                                HomeTile("Downloads", Icons.Default.FolderDownload, Color(0xFF078BFF), Modifier.weight(1f)) {
+                                HomeTile("Downloads", Icons.Default.Downloading, Color(0xFF078BFF), Modifier.weight(1f)) {
                                     current = File(Environment.getExternalStorageDirectory(), "Download")
                                     home = false
                                 }
