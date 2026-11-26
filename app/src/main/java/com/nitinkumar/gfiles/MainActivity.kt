@@ -12,6 +12,7 @@ import android.os.Environment
 import android.os.StatFs
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -81,6 +82,16 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
     var renameTarget by remember { mutableStateOf<File?>(null) }
     var renameText by remember { mutableStateOf("") }
     var infoDialog by remember { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = !home || page != "LOCAL") {
+        if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
+        else {
+            val root = Environment.getExternalStorageDirectory()
+            val parent = current.parentFile
+            if (parent != null && (parent.absolutePath == root.absolutePath || parent.absolutePath.startsWith(root.absolutePath + File.separator))) current = parent
+            else { current = root; home = true; query = "" }
+        }
+    }
 
     val bg = if (dark) Navy else Color(0xFFF2F6FC)
     val fg = if (dark) Color.White else Color(0xFF102033)
@@ -173,7 +184,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                     }
 
                     Row(Modifier.fillMaxWidth().background(card), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        listOf("LOCAL", "LIBRARY", "NETWORK").forEach { tab ->
+                        listOf("LOCAL", "NETWORK").forEach { tab ->
                             Column(
                                 Modifier.weight(1f).clickable { page = tab; home = tab == "LOCAL" },
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -195,17 +206,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
                                     current = File(Environment.getExternalStorageDirectory(), "Download")
                                     home = false
                                 }
-                                HomeTile("Apps", Icons.Default.Android, Color(0xFF83B936), Modifier.weight(1f)) {
-                                    infoDialog = "Apps manager is not available in this version yet."
-                                }
                             }
                             Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                HomeTile("Recycle Bin", Icons.Default.Delete, Color(0xFF607D8B), Modifier.weight(1f)) {
-                                    infoDialog = "Recycle Bin is not enabled yet. Deleted files are permanently removed."
-                                }
-                                Spacer(Modifier.weight(2f))
-                            }
                         }
                     }
                 }
@@ -224,9 +226,6 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
             } else {
                 Column(Modifier.weight(1f).padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { if (current.parentFile != null) current = current.parentFile!! else home = true }) {
-                            Icon(Icons.Default.ArrowBack, "Back", tint = fg)
-                        }
                         Column(Modifier.weight(1f)) {
                             Text(current.name.ifBlank { "Internal storage" }, color = fg, fontWeight = FontWeight.SemiBold)
                             Text(current.absolutePath, color = fg.copy(alpha = .55f), style = MaterialTheme.typography.labelSmall, maxLines = 1)
