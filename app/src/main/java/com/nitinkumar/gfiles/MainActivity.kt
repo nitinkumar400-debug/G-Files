@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             addAction(Intent.ACTION_MEDIA_REMOVED)
             addDataScheme("file")
         }
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(storageReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(storageReceiver, filter, Context.RECEIVER_EXPORTED)
         else @Suppress("DEPRECATION") registerReceiver(storageReceiver, filter)
     }
     override fun onStop() {
@@ -159,16 +159,29 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     val fg = if (dark) Color.White else Color(0xFF102033)
     val card = if (dark) Panel else Color.White
     val usbVolumes: List<File> = remember(refresh, usbRefresh) {
-        if (Build.VERSION.SDK_INT >= 30) {
-            runCatching {
+        runCatching {
+            val found = linkedMapOf<String, File>()
+            if (Build.VERSION.SDK_INT >= 30) {
                 val manager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
                 manager.storageVolumes
                     .filter { volume -> volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED }
-                    .mapNotNull { volume -> volume.directory?.takeIf { dir -> dir.exists() && dir.canRead() } }
-            }.getOrDefault(emptyList())
-        } else {
-            emptyList()
-        }
+                    .forEach { volume ->
+                        val direct = volume.directory
+                        val uuidPath = volume.uuid?.let { File("/storage", it) }
+                        listOfNotNull(direct, uuidPath).forEach { dir ->
+                            if (dir.exists() && dir.isDirectory && dir.canRead() && dir.listFiles() != null) {
+                                found[dir.canonicalPath] = dir
+                            }
+                        }
+                    }
+            }
+            val storageRoot = File("/storage")
+            storageRoot.listFiles()?.filter { dir ->
+                dir.isDirectory && dir.name != "emulated" && dir.name != "self" &&
+                    dir.exists() && dir.canRead() && dir.listFiles() != null
+            }?.forEach { dir -> found[dir.canonicalPath] = dir }
+            found.values.toList()
+        }.getOrDefault(emptyList())
     }
     val storage = remember(refresh) {
         runCatching {
@@ -270,9 +283,16 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
-                            Text(if (usbVolumes.isEmpty()) "USB Drive: Not connected" else "USB Drive: ${usbVolumes.size} connected",
-                                color = if (usbVolumes.isEmpty()) Muted else Color(0xFF69F0AE),
-                                style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (usbVolumes.isEmpty()) "USB Drive: Not connected" else "USB Drive: ${usbVolumes.size} connected",
+                                    color = if (usbVolumes.isEmpty()) Muted else Color(0xFF69F0AE),
+                                    style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f).padding(start = 4.dp))
+                                TextButton(onClick = { refresh++; usbRefresh++ }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Refresh USB")
+                                }
+                            }
                         }
                     }
                 }
