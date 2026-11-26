@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import java.io.File
+import java.util.zip.ZipFile
 import java.text.DateFormat
 import java.util.Date
 
@@ -79,10 +80,14 @@ class MainActivity : ComponentActivity() {
                 headerImageUri = headerImage,
                 chooseHeaderImage = { imagePicker.launch(arrayOf("image/*")) },
                 openFile = { file ->
-                    val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
-                    val mime = if (file.extension.equals("apk", true)) "application/vnd.android.package-archive" else contentResolver.getType(uri) ?: "*/*"
-                    startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    val isApk = file.extension.equals("apk", true)
+                    if (isApk && Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+                        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                    } else {
+                        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+                        val mime = if (isApk) "application/vnd.android.package-archive" else contentResolver.getType(uri) ?: "*/*"
+                        startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    }
                 }
             )
         }
@@ -100,6 +105,9 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var page by remember { mutableStateOf("LOCAL") }
     var home by remember { mutableStateOf(true) }
     var menuFile by remember { mutableStateOf<File?>(null) }
+    var zipTarget by remember { mutableStateOf<File?>(null) }
+    var zipEntries by remember { mutableStateOf<List<String>>(emptyList()) }
+    var zipMessage by remember { mutableStateOf<String?>(null) }
     var renameTarget by remember { mutableStateOf<File?>(null) }
     var renameText by remember { mutableStateOf("") }
     var infoDialog by remember { mutableStateOf<String?>(null) }
@@ -264,7 +272,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                     Card(colors = CardDefaults.cardColors(containerColor = if (selectedFiles.contains(file)) Blue.copy(alpha = .28f) else card.copy(alpha = .96f)),
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier.fillMaxWidth().combinedClickable(
-                                            onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else openFile(file) },
+                                            onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else if (file.extension.equals("zip", true)) { zipTarget = file; zipEntries = runCatching { ZipFile(file).use { z -> z.entries().asSequence().take(150).map { it.name }.toList() } }.getOrDefault(emptyList()) } else openFile(file) },
                                             onLongClick = { if (!selectedFiles.contains(file)) selectedFiles.add(file) }
                                         )) {
                                         Column(Modifier.padding(9.dp)) {
@@ -289,7 +297,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                             items(files, key = { it.absolutePath }) { file ->
                                 Card(colors = CardDefaults.cardColors(containerColor = card.copy(alpha = .96f)),
                                     shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().combinedClickable(
-                                        onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else openFile(file) },
+                                        onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else if (file.extension.equals("zip", true)) { zipTarget = file; zipEntries = runCatching { ZipFile(file).use { z -> z.entries().asSequence().take(150).map { it.name }.toList() } }.getOrDefault(emptyList()) } else openFile(file) },
                                         onLongClick = { if (!selectedFiles.contains(file)) selectedFiles.add(file) }
                                     )) {
                                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -359,6 +367,41 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     }
         }
     }
+
+    zipTarget?.let { archive ->
+        AlertDialog(onDismissRequest = { zipTarget = null }, title = { Text("ZIP archive: ${archive.name}") },
+            text = {
+                Column(Modifier.heightIn(max = 320.dp)) {
+                    Text("${zipEntries.size} entries shown", style = MaterialTheme.typography.labelSmall)
+                    Spacer(Modifier.height(8.dp))
+                    if (zipEntries.isEmpty()) Text("Archive is empty or cannot be read.")
+                    else LazyColumn { items(zipEntries) { entry -> Text(entry, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 3.dp)) } }
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                val destination = File(archive.parentFile, archive.nameWithoutExtension)
+                val result = runCatching {
+                    destination.mkdirs()
+                    ZipFile(archive).use { zip -> zip.entries().asSequence().forEach { entry ->
+                        val out = File(destination, entry.name)
+                        val rootPath = destination.canonicalPath + File.separator
+                        require(out.canonicalPath == destination.canonicalPath || out.canonicalPath.startsWith(rootPath)) { "Unsafe archive path" }
+                        if (entry.isDirectory) out.mkdirs() else {
+                            out.parentFile?.mkdirs()
+                            zip.getInputStream(entry).use { input -> out.outputStream().use { output -> input.copyTo(output) } }
+                        }
+                    } }
+                }
+                zipMessage = result.fold({ "Extracted to: ${destination.absolutePath}" }, { "Extraction failed: ${it.message}" })
+                zipTarget = null; refresh++
+            }) { Text("Extract here") } },
+            dismissButton = { TextButton(onClick = { zipTarget = null }) { Text("Close") } })
+    }
+    zipMessage?.let { msg ->
+        AlertDialog(onDismissRequest = { zipMessage = null }, title = { Text("ZIP extraction") },
+            text = { Text(msg) }, confirmButton = { TextButton(onClick = { zipMessage = null }) { Text("OK") } })
+    }
+
     if (searchOpen) {
         AlertDialog(onDismissRequest = { searchOpen = false },
             title = { Text("Search files and folders") },
