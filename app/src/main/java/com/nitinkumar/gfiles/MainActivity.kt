@@ -141,7 +141,13 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var searchOpen by remember { mutableStateOf(false) }
     val selectedFiles = remember { mutableStateListOf<File>() }
     val selectedUsbFiles = remember { mutableStateListOf<DocumentFile>() }
-    var usbClipboard by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    val usbClipboardPrefs = remember { context.getSharedPreferences("gfiles_settings", Context.MODE_PRIVATE) }
+    var usbClipboardUris by remember {
+        mutableStateOf(usbClipboardPrefs.getStringSet("usb_clipboard_uris", emptySet())?.toList() ?: emptyList())
+    }
+    val usbClipboard: List<DocumentFile> = remember(usbClipboardUris) {
+        usbClipboardUris.mapNotNull { raw -> runCatching { DocumentFile.fromTreeUri(context, Uri.parse(raw)) }.getOrNull() }
+    }
     var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
     var moveMode by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -505,7 +511,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 7.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (selectedUsbFiles.isNotEmpty()) "${selectedUsbFiles.size} selected" else "${usbClipboard.size} copied", color = Color.White, fontWeight = FontWeight.Bold)
-                IconButton(enabled = selectedUsbFiles.isNotEmpty(), onClick = { usbClipboard = selectedUsbFiles.toList(); selectedUsbFiles.clear() }) {
+                IconButton(enabled = selectedUsbFiles.isNotEmpty(), onClick = { usbClipboardUris = selectedUsbFiles.map { it.uri.toString() }; usbClipboardPrefs.edit().putStringSet("usb_clipboard_uris", usbClipboardUris.toSet()).apply(); selectedUsbFiles.clear() }) {
                     Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White)
                 }
                 IconButton(enabled = usbClipboard.isNotEmpty(), onClick = {
@@ -517,7 +523,8 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                     } else {
                         usbClipboard.forEach { source -> runCatching { copyDocumentToFile(context, source, current) } }
                     }
-                    usbClipboard = emptyList()
+                    usbClipboardUris = emptyList()
+                    usbClipboardPrefs.edit().remove("usb_clipboard_uris").apply()
                     refresh++
                 }) { Icon(Icons.Default.ContentPaste, "Paste", tint = if (usbClipboard.isNotEmpty()) Color.White else Muted) }
                 IconButton(enabled = selectedUsbFiles.isNotEmpty(), onClick = {
