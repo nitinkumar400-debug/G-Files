@@ -88,7 +88,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, openFile: (Fi
         else lightColorScheme(primary = Color(0xFF1565C0), background = bg, surface = card)) {
         Column(Modifier.fillMaxSize().background(bg)) {
             Row(
-                Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFF087FAE), Color(0xFF164E91), Color(0xFF172C55))).padding(horizontal = 18.dp, vertical = 15.dp),
+                Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(Color(0xFF087FAE), Color(0xFF164E91), Color(0xFF172C55)))).padding(horizontal = 18.dp, vertical = 15.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Default.Folder, null, tint = Color.White, modifier = Modifier.size(28.dp))
