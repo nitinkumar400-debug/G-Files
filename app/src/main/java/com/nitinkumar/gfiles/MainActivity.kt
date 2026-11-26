@@ -19,6 +19,8 @@ import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.documentfile.provider.DocumentFile
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -141,10 +143,30 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var clipboardFiles by remember { mutableStateOf<List<File>>(emptyList()) }
     var moveMode by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val usbPrefs = remember { context.getSharedPreferences("gfiles_settings", Context.MODE_PRIVATE) }
+    var usbTreeUri by remember { mutableStateOf(usbPrefs.getString("usb_tree_uri", null)) }
+    var usbStack by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    val usbTreePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+            usbPrefs.edit().putString("usb_tree_uri", uri.toString()).apply()
+            usbTreeUri = uri.toString()
+            DocumentFile.fromTreeUri(context, uri)?.let { root ->
+                usbStack = listOf(root)
+                page = "USB"
+                home = false
+            }
+        }
+    }
 
     BackHandler(enabled = selectedFiles.isNotEmpty() || !home || page != "LOCAL") {
         if (selectedFiles.isNotEmpty()) {
             selectedFiles.clear()
+        } else if (page == "USB" && usbStack.size > 1) {
+            usbStack = usbStack.dropLast(1)
         } else if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
         else {
             val root = Environment.getExternalStorageDirectory()
@@ -273,12 +295,14 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                     home = false
                                 }
                                 HomeTile("USB Drive", Icons.Default.Usb, Color(0xFF00BFA5), Modifier.weight(1f)) {
-                                    if (usbVolumes.isNotEmpty()) {
-                                        current = usbVolumes.first()
+                                    val saved = usbTreeUri?.let { Uri.parse(it) }
+                                    val root = saved?.let { DocumentFile.fromTreeUri(context, it) }
+                                    if (root != null && root.exists()) {
+                                        usbStack = listOf(root)
+                                        page = "USB"
                                         home = false
-                                        page = "LOCAL"
                                     } else {
-                                        infoDialog = "USB drive not detected. Connect a USB OTG drive and refresh."
+                                        usbTreePicker.launch(null)
                                     }
                                 }
                             }
@@ -291,6 +315,56 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
                                     Text("Refresh USB")
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (page == "USB") {
+                val usbFolder = usbStack.lastOrNull()
+                val usbFiles = remember(usbFolder?.uri, refresh, usbRefresh) {
+                    runCatching { usbFolder?.listFiles()?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name?.lowercase() ?: "" }) ?: emptyList() }
+                        .getOrDefault(emptyList())
+                }
+                Column(Modifier.weight(1f).fillMaxWidth().padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Usb, null, tint = Color(0xFF00BFA5), modifier = Modifier.size(28.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(usbFolder?.name ?: "USB Drive", color = fg, fontWeight = FontWeight.Bold)
+                            Text("USB storage", color = fg.copy(alpha = .6f), style = MaterialTheme.typography.labelSmall)
+                        }
+                        IconButton(onClick = { refresh++ }) { Icon(Icons.Default.Refresh, "Refresh", tint = fg) }
+                        IconButton(onClick = { usbTreePicker.launch(null) }) { Icon(Icons.Default.FolderOpen, "Choose USB", tint = fg) }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    if (usbFiles.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("This USB folder is empty", color = fg.copy(alpha = .65f))
+                        }
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(usbFiles, key = { it.uri.toString() }) { item ->
+                                Card(colors = CardDefaults.cardColors(containerColor = card), modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        if (item.isDirectory) usbStack = usbStack + item
+                                        else runCatching {
+                                            val mime = context.contentResolver.getType(item.uri) ?: "*/*"
+                                            context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, mime)
+                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                        }
+                                    }) {
+                                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(if (item.isDirectory) Icons.Default.Folder else Icons.Default.InsertDriveFile,
+                                            null, tint = Color(0xFFFFC928), modifier = Modifier.size(32.dp))
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(item.name ?: "Unnamed", color = fg, maxLines = 1)
+                                            Text(if (item.isDirectory) "Folder" else formatSize(item.length()),
+                                                color = fg.copy(alpha = .55f), style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        if (item.isDirectory) Icon(Icons.Default.ChevronRight, null, tint = fg.copy(alpha = .5f))
+                                    }
                                 }
                             }
                         }
