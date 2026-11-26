@@ -299,9 +299,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                 }
             }
         }
-    }
-
-    if (selectedFiles.isNotEmpty()) {
+     if (selectedFiles.isNotEmpty()) {
         Surface(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)
                 .navigationBarsPadding(),
@@ -341,6 +339,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
             }
         }
     }
+        }
     }
     if (searchOpen) {
         AlertDialog(onDismissRequest = { searchOpen = false },
