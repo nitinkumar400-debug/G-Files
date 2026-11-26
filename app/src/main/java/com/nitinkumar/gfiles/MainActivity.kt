@@ -12,6 +12,7 @@ import android.os.Environment
 import android.os.StatFs
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.core.view.WindowCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -19,6 +20,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -53,6 +55,9 @@ private val Muted = Color(0xFF9DB2C9)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.statusBarColor = android.graphics.Color.rgb(8, 91, 145)
+        window.navigationBarColor = android.graphics.Color.rgb(7, 20, 38)
         val prefs = getSharedPreferences("gfiles_settings", MODE_PRIVATE)
         var headerImage by mutableStateOf(prefs.getString("header_image_uri", null))
         val imagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -74,7 +79,7 @@ class MainActivity : ComponentActivity() {
                 chooseHeaderImage = { imagePicker.launch(arrayOf("image/*")) },
                 openFile = { file ->
                     val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
-                    val mime = contentResolver.getType(uri) ?: "*/*"
+                    val mime = if (file.extension.equals("apk", true)) "application/vnd.android.package-archive" else contentResolver.getType(uri) ?: "*/*"
                     startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
                 }
@@ -98,6 +103,7 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
     var infoDialog by remember { mutableStateOf<String?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
+    val selectedFiles = remember { mutableStateListOf<File>() }
 
     BackHandler(enabled = !home || page != "LOCAL") {
         if (page != "LOCAL") { page = "LOCAL"; home = true; query = "" }
@@ -241,9 +247,10 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                                 gridItems(files, key = { it.absolutePath }) { file ->
                                     Card(colors = CardDefaults.cardColors(containerColor = card.copy(alpha = .96f)),
                                         shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.fillMaxWidth().clickable {
-                                            if (file.isDirectory) current = file else openFile(file)
-                                        }) {
+                                        modifier = Modifier.fillMaxWidth().combinedClickable(
+                                            onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else openFile(file) },
+                                            onLongClick = { if (!selectedFiles.contains(file)) selectedFiles.add(file) }
+                                        )) {
                                         Column(Modifier.padding(9.dp)) {
                                             FileThumbnail(file = file, modifier = Modifier.fillMaxWidth().height(112.dp),
                                                 tint = if (file.isDirectory) Cyan else Blue)
@@ -265,9 +272,10 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                         } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(files, key = { it.absolutePath }) { file ->
                                 Card(colors = CardDefaults.cardColors(containerColor = card.copy(alpha = .96f)),
-                                    shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable {
-                                        if (file.isDirectory) current = file else openFile(file)
-                                    }) {
+                                    shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().combinedClickable(
+                                        onClick = { if (selectedFiles.isNotEmpty()) { if (selectedFiles.contains(file)) selectedFiles.remove(file) else selectedFiles.add(file) } else if (file.isDirectory) current = file else openFile(file) },
+                                        onLongClick = { if (!selectedFiles.contains(file)) selectedFiles.add(file) }
+                                    )) {
                                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(if (file.isDirectory) Icons.Default.Folder else fileIcon(file), null,
                                             tint = if (file.isDirectory) Cyan else Blue, modifier = Modifier.size(28.dp))
@@ -284,6 +292,18 @@ fun GFilesApp(hasAccess: () -> Boolean, requestAccess: () -> Unit, headerImageUr
                         }
                     }
                 }
+            }
+        }
+    }
+
+    if (selectedFiles.isNotEmpty()) {
+        Surface(Modifier.fillMaxWidth().padding(10.dp), color = Color(0xCC173A5D), shape = RoundedCornerShape(22.dp), shadowElevation = 12.dp) {
+            Row(horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Text(selectedFiles.size.toString() + " selected", color = Color.White)
+                IconButton(onClick = { val dest = File(Environment.getExternalStorageDirectory(), "Download"); selectedFiles.toList().forEach { f -> runCatching { val t = File(dest, f.name); if (f.isDirectory) f.copyRecursively(t, true) else f.copyTo(t, true) } }; selectedFiles.clear(); refresh++ }) { Icon(Icons.Default.ContentCopy, "Copy", tint = Color.White) }
+                IconButton(onClick = { val dest = File(Environment.getExternalStorageDirectory(), "Download"); selectedFiles.toList().forEach { f -> runCatching { f.renameTo(File(dest, f.name)) } }; selectedFiles.clear(); refresh++ }) { Icon(Icons.Default.DriveFileMove, "Move", tint = Color.White) }
+                IconButton(onClick = { selectedFiles.toList().forEach { it.deleteRecursively() }; selectedFiles.clear(); refresh++ }) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF8A80)) }
+                IconButton(onClick = { selectedFiles.clear() }) { Icon(Icons.Default.Close, "Cancel", tint = Color.White) }
             }
         }
     }
